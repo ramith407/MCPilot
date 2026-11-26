@@ -5,6 +5,15 @@
 
 MCPilot is a centralized platform designed to simplify how developers discover, configure, validate, test, and manage Model Context Protocol (MCP) integrations across different AI clients.
 
+## Project documentation
+
+- [Architecture and security boundaries](docs/architecture.md)
+- [Canonical integration specification](docs/integration-specification.md)
+- [Implementation roadmap](docs/implementation-roadmap.md)
+- [Development setup and portability verification](docs/development-setup.md)
+
+The setup guide covers the current frontend and minimal local FastAPI health/message API. MCP connections and the wider backend services remain planned work.
+
 Instead of manually configuring every MCP server for every supported client, MCPilot aims to provide a unified integration workflow that generates client-specific configurations from a single integration specification.
 
 ---
@@ -44,11 +53,13 @@ The core feature of MCPilot.
 - Support multiple AI clients through a common workflow.
 
 ### 3. Multi-Client Configuration Generator
-Generate configuration files for supported environments, with an initial focus on:
+Planned target clients (not verified or supported yet) are:
 
 - Cursor
 - Visual Studio Code
 - Claude Desktop
+
+Do not claim support for a client until its configuration format and OS-specific paths have been verified on the supported operating systems. See [the client scope and verification status](docs/architecture.md#initial-target-scope-planned-not-supported-yet).
 
 The architecture is intended to support additional clients in the future.
 

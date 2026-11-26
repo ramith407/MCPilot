@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BackendConnectivity } from "@/components/backend-connectivity";
 import { Icon } from "@/components/icon";
 
 const workflow = [
@@ -67,6 +68,8 @@ export default function OverviewPage() {
           <div className="visual-caption"><span>01</span> A portable definition at the center of your workflow</div>
         </div>
       </section>
+
+      <BackendConnectivity />
 
       <section className="workflow-section" id="workflow" aria-labelledby="workflow-heading">
         <div className="section-heading-row">
