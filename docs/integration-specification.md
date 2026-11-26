@@ -1,5 +1,7 @@
 # MCPilot Canonical Integration Specification
 
+> This earlier design note is retained as background. The normative proposed model for the first implementation is [canonical-integration-specification.md](canonical-integration-specification.md).
+
 ## Status
 
 This is a proposed, deliberately small, versioned format. The current UI has a local Builder form, but no shared canonical model, backend validation, or live MCP connection. The existing TypeScript type supports only `stdio`, while the Builder UI also offers `http`; this document resolves that mismatch at the design level, not in application code.

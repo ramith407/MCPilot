@@ -48,6 +48,8 @@ flowchart LR
 
 Use the official MCP Python SDK for protocol messages, initialization, capability negotiation, tool listing, and tool calls. Pin its version because SDK major versions can introduce breaking changes. The current SDK documentation describes stdio and Streamable HTTP; its stdio guidance emphasizes that stdout is the protocol stream. Ordinary server output must not be allowed to corrupt it. [MCP Python SDK installation](https://py.sdk.modelcontextprotocol.io/get-started/installation/) · [Running an MCP server](https://py.sdk.modelcontextprotocol.io/run/)
 
+The detailed proposed runtime/session design and the first real STDIO demo sequence are documented in [MCP runtime architecture](mcp-runtime-architecture.md) and [first vertical slice](first-vertical-slice.md). Neither is implemented by the current backend foundation.
+
 Keep these operations separate and visible in the UI:
 
 1. Validate the MCPilot definition.

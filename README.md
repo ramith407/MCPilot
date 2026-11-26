@@ -8,7 +8,10 @@ MCPilot is a centralized platform designed to simplify how developers discover, 
 ## Project documentation
 
 - [Architecture and security boundaries](docs/architecture.md)
-- [Canonical integration specification](docs/integration-specification.md)
+- [Canonical integration specification](docs/canonical-integration-specification.md)
+- [MCP runtime architecture](docs/mcp-runtime-architecture.md)
+- [First end-to-end vertical slice](docs/first-vertical-slice.md)
+- [Earlier integration design notes](docs/integration-specification.md)
 - [Implementation roadmap](docs/implementation-roadmap.md)
 - [Development setup and portability verification](docs/development-setup.md)
 

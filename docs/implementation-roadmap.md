@@ -2,6 +2,8 @@
 
 This roadmap turns the existing UI prototype into a usable local-first MVP in small, verifiable steps. It preserves the current Next.js frontend and does not claim any unfinished feature is real.
 
+The detailed first real STDIO workflow is specified in [first-vertical-slice.md](first-vertical-slice.md), with its canonical data contract in [canonical-integration-specification.md](canonical-integration-specification.md) and session lifecycle in [mcp-runtime-architecture.md](mcp-runtime-architecture.md). These are design documents, not implementation status.
+
 ## Phase summary and dependencies
 
 ```mermaid
@@ -24,7 +26,7 @@ Every phase includes security and portability gates. Compatibility is not declar
 
 **Features:** Define a versioned JSON Schema for stdio and Streamable HTTP; add Pydantic models; validate YAML imports through a real parser then normalize to the canonical model; model local secret references.
 
-**Likely files:** `spec/integration.schema.json`, `spec/examples/*`, `docs/integration-specification.md`, `backend/pyproject.toml` or pinned requirements/lock files, `backend/src/mcpilot_api/schemas/*`, and shared frontend spec types/validators under `src/features` or `src/types`.
+**Likely files:** `spec/integration.schema.json`, `spec/examples/*`, `docs/canonical-integration-specification.md`, `backend/pyproject.toml` or pinned requirements/lock files, `backend/src/mcpilot_api/schemas/*`, and shared frontend spec types/validators under `src/features` or `src/types`.
 
 **Dependencies:** Python 3.11+ for the current official MCP Python SDK line; pinned Pydantic and JSON Schema dependencies; existing TypeScript/YAML packages.
 
@@ -93,6 +95,8 @@ Every phase includes security and portability gates. Compatibility is not declar
 ## Phase 6 — MCP session management and connections
 
 **Features:** Start approved stdio processes and connect to approved Streamable HTTP endpoints using the official SDK; initialize/handshake; structured session states; timeouts, cancellation, and cleanup.
+
+Detailed design: [MCP runtime architecture](mcp-runtime-architecture.md). The first implementation demo exercises STDIO only; Streamable HTTP remains a separately verified transport path.
 
 **Likely files:** `backend/src/mcpilot_api/services/sessions/*`, `security/*`, API session routes, `src/features/playground/*`, SDK lock files, and controlled test-server fixtures.
 
