@@ -15,7 +15,7 @@ MCPilot is a centralized platform designed to simplify how developers discover, 
 - [Implementation roadmap](docs/implementation-roadmap.md)
 - [Development setup and portability verification](docs/development-setup.md)
 
-The setup guide covers the current frontend and minimal local FastAPI health/message API. MCP connections and the wider backend services remain planned work.
+The setup guide covers the frontend and local FastAPI backend. The Playground now has a first real STDIO MCP demo using the official Python SDK; configuration compilation, live diagnostics, Streamable HTTP sessions, persistence, and client adapters remain planned work.
 
 Instead of manually configuring every MCP server for every supported client, MCPilot aims to provide a unified integration workflow that generates client-specific configurations from a single integration specification.
 
@@ -76,7 +76,7 @@ A diagnostic system designed to identify common configuration issues, including:
 - Potential connection problems
 
 ### 5. MCP Testing Playground
-A unified environment for testing MCP server connections and inspecting their available tools and responses.
+The first working Playground flow connects to the bundled local STDIO demo server, displays its live tools, and requires approval before tool calls. General external MCP server connections and Streamable HTTP are not implemented yet.
 
 ### 6. Security-Aware Configuration
 MCPilot is designed with security considerations such as:

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Icon } from "@/components/icon";
+import { PlaygroundClient } from "@/features/playground/playground-client";
 
 const sections = {
   builder: {
@@ -61,6 +62,9 @@ export default async function SectionPage({
 }) {
   const { section } = await params;
   if (!Object.hasOwn(sections, section)) notFound();
+  if (section === "playground") {
+    return <PlaygroundClient />;
+  }
   const item = sections[section as SectionKey];
 
   return (

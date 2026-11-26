@@ -1,0 +1,21 @@
+warning: in the working copy of 'backend/pyproject.toml', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/requirements.txt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/src/mcpilot_api/main.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/src/mcpilot_api/schemas.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/architecture.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/canonical-integration-specification.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/development-setup.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/first-vertical-slice.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/mcp-runtime-architecture.md', LF will be replaced by CRLF the next time Git touches it
+ README.md                                   |   4 [32m+[m[31m-[m
+ backend/pyproject.toml                      |   2 [32m+[m
+ backend/requirements.txt                    |   2 [32m+[m
+ backend/src/mcpilot_api/main.py             |  44 [32m+++++[m[31m-[m
+ backend/src/mcpilot_api/schemas.py          | 204 [32m++++++++++++++++++++++++++++[m
+ docs/architecture.md                        |  20 [32m++[m[31m-[m
+ docs/canonical-integration-specification.md |  10 [32m+[m[31m-[m
+ docs/development-setup.md                   |  17 [32m++[m[31m-[m
+ docs/first-vertical-slice.md                |  12 [32m+[m[31m-[m
+ docs/mcp-runtime-architecture.md            |  59 [32m++++[m[31m----[m
+ src/app/[section]/page.tsx                  |   4 [32m+[m
+ 11 files changed, 321 insertions(+), 57 deletions(-)

@@ -2,9 +2,9 @@
 
 ## Status and goal
 
-**Implementation plan only.** This document defines the first real MCP workflow; none of its MCP functionality is implemented yet. Today, the backend exposes health/test endpoints. The Builder is a local, non-persisted demo; its space-splitting arguments field cannot preserve quoted argument boundaries. The Compiler uses a hardcoded integration list and simulated delay, and labels output illustrative. Doctor uses deterministic mock scenarios. `/playground` is rendered by the generic dynamic section page and explicitly says it is not implemented. See the actual current status in [architecture](architecture.md).
+**Implemented on `feature/basic-backend` for the bundled demo only.** The Playground now registers a canonical STDIO integration, displays and verifies launch approval, starts the real demo server with the official MCP Python SDK, discovers live tools, requires a separate exact-argument approval for calls, displays actual results, and disconnects. The registry/session state is in memory. Streamable HTTP, external servers, client config generation, database persistence, and general diagnostics remain unimplemented. Builder and Compiler remain prototype flows; Doctor remains mock data. See [architecture](architecture.md) for broader status.
 
-The first end-to-end demonstration will register one canonical local integration, launch one controlled STDIO MCP server with the official Python SDK, perform SDK-managed initialization/negotiation, discover its three real tools, invoke one after explicit approval, show the returned result, and close the session. It does not include Streamable HTTP, external MCP servers, client config generation, a database, or broad server discovery.
+The end-to-end demonstration registers one canonical local integration, launches one controlled STDIO MCP server with the official Python SDK, performs SDK-managed initialization/negotiation, discovers its three real tools, invokes one after explicit approval, shows the returned result, and closes the session. It does not include Streamable HTTP, external MCP servers, client config generation, a database, or broad server discovery.
 
 ## Demo MCP server contract
 
@@ -47,7 +47,7 @@ src/
   lib/api/
 ```
 
-Add the official MCP Python SDK as an explicitly pinned backend runtime dependency in the implementation phase. Package the demo server in the same venv so the approved demo interpreter can import it; use a runtime resolution profile that prefers the MCPilot venv interpreter for the portable `python` alias and displays its resolved path for approval. Do not commit an absolute venv path. Validate this resolution on each OS before relying on it.
+The backend pins the official MCP Python SDK at `mcp==2.3.0`. The demo server is packaged in the same Python project; the portable `python` alias resolves to the active backend interpreter and displays its resolved path for approval. Do not commit an absolute venv path. Validate this resolution on each OS before claiming platform support.
 
 ## Ordered demonstration workflow
 
@@ -106,7 +106,7 @@ Source: live MCP server response
 | Missing Python runtime or demo module | Do not launch, or report child startup failure with a safe diagnostic. | Actionable message naming the missing runtime/module; offer setup guidance, never a fake successful connection. |
 | Executable/cwd changed after approval | Invalidate approval and do not launch. | Ask for a new approval showing the new resolved details. |
 | User denies connection approval | No child process or HTTP request is created. | Show “Connection not started” as a neutral state. |
-| Launch timeout, immediate exit, or malformed stdout | Mark connection failed; capture bounded stderr only as diagnostic text; run cleanup. | Show stage-specific error and safe stderr excerpt if useful. Stdout is not shown as ordinary logs. |
+| Launch timeout, immediate exit, or malformed stdout | Mark connection failed and run SDK cleanup. Child stderr is discarded to the platform null device. | Show a safe stage-specific error; stdout is never displayed as ordinary logs. |
 | MCP protocol/version initialization fails | Close the SDK context and process; retain a structured failure code. | Show protocol negotiation failed, not “connected.” |
 | `tools/list` fails or returns a different list | Keep no fabricated tools; preserve/close the session based on the SDK error. | Show actual discovered tools or a discovery error. An empty list is not replaced with demo fixtures. |
 | Invalid tool arguments | Reject before call when schema validation can establish the problem; do not consume approval for changed arguments. | Show validation details and let the user correct/review again. |
@@ -118,7 +118,9 @@ Source: live MCP server response
 
 ## Acceptance criteria
 
-The slice is complete only when all of these are true:
+The planned completion gates are listed below. On this branch, automated backend and build gates pass on Windows 11/Python 3.13.9, but no clean-machine Linux/macOS verification or manual browser smoke test has been recorded. Do not infer cross-platform support.
+
+The slice is fully verified only when all of these are true:
 
 1. A clean developer environment can install the pinned SDK and launch the bundled demo from the documented venv on Windows, Linux, and macOS.
 2. Registration validates the canonical definition and does not start a process.

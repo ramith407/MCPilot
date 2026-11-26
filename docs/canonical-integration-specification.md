@@ -2,9 +2,9 @@
 
 ## Status and scope
 
-**Design only.** No canonical integration API, MCP connection, or MCP SDK dependency is implemented in the current repository. The current backend exposes only `GET /api/health` and `POST /api/test`. This document defines a proposed portable JSON contract for one MCP server definition. It is not a client configuration format and it is not an approval to execute that definition.
+**Implemented in part.** The backend now validates and registers this versioned Pydantic model and uses its STDIO definition for the first local demo flow. The Streamable HTTP shape is accepted for validation/registration but cannot be connected yet. This remains a portable JSON contract, not a client configuration format or approval to execute a definition.
 
-The existing [integration specification](integration-specification.md) remains useful background. This file is the normative proposed model for the first implementation; update both documents if the design changes before implementation.
+The existing [integration specification](integration-specification.md) remains useful background. This file is the normative v1 model; the initial API implementation covers strict Pydantic validation, registration, and STDIO runtime fields. Keep schema and API changes aligned.
 
 ## Design principles
 
@@ -49,6 +49,8 @@ ValueSource
   | SecretReference {kind: "secretRef", provider: "environment", key: string}
 ```
 
+For Pydantic v2, express each union as `Annotated[Union[...], Field(discriminator="type")]` (or discriminator `"kind"` for value sources), and configure every model with `ConfigDict(extra="forbid", strict=True)`. Use `Literal[...]` for version/tag values, constrained strings for identifiers and lengths, and `field_validator`/`model_validator` only for semantic rules that JSON Schema cannot express. Keep aliases explicit so generated JSON uses the names in this document.
+
 The v1 authentication union deliberately supports only `none` and a bearer token referenced from the local environment. OAuth, client certificates, credential-store providers, and custom authentication flows require a later explicit design; v1 validators must reject them rather than silently drop them.
 
 ## Field reference
@@ -79,7 +81,7 @@ For every nested model, reject extra keys and invalid types. Environment keys us
 
 ## JSON example: local STDIO demo
 
-This is a portable definition example, not a claim that the runtime or demo server is implemented. `python` is an executable name to resolve on the developer's machine; the approval screen must show the actual resolved executable path before it launches.
+This is the portable definition used by the bundled demo flow. `python` resolves to the active backend interpreter on the developer's machine; the approval screen shows the resolved executable path before launch. The Streamable HTTP definition is currently validated but not connected.
 
 ```json
 {
@@ -161,3 +163,5 @@ The token value exists only in the developer's environment. Validation checks th
 - Check in schema examples and fixtures for every supported version. Test Pydantic/JSON Schema parity and migration behavior before changing the contract.
 - Keep extension data under namespaced keys (for example, `com.example.audit`). It is inert unless an explicitly versioned implementation handles it. Extensions cannot bypass command approval, secret rules, or transport validation.
 - Store local resolved executable paths, approved working roots, runtime secret values, and session tokens outside portable definitions. They are local-only operational state, not exportable integration data.
+
+Protocol references: [MCP standard transports](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports) · [MCP tool definitions and invocation model](https://modelcontextprotocol.io/specification/2025-11-25/server/tools).

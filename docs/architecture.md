@@ -2,7 +2,7 @@
 
 ## Status and goals
 
-This document describes the target local-first architecture and distinguishes it from the current foundation. The repository contains the Next.js frontend and a minimal FastAPI service with `GET /api/health` and `POST /api/test`; it does not yet contain an MCP client, process manager, database, or live diagnostics. The broader architecture below remains proposed work.
+This document describes the target local-first architecture and distinguishes it from implemented functionality. The repository contains the Next.js frontend, FastAPI health/message endpoints, and the first STDIO-only Playground slice: an in-memory integration registry, backend-enforced approvals, and an official MCP Python SDK client for the bundled demo server. The wider compiler, client adapters, diagnostics, Streamable HTTP runtime, and database remain proposed work.
 
 The MVP should let one developer define an integration once, validate it, compile it for explicitly supported client targets, and safely test an MCP connection on that developer's own machine. It should remain understandable and runnable by a small team.
 
@@ -46,9 +46,9 @@ flowchart LR
 
 ### MCP SDK and transports
 
-Use the official MCP Python SDK for protocol messages, initialization, capability negotiation, tool listing, and tool calls. Pin its version because SDK major versions can introduce breaking changes. The current SDK documentation describes stdio and Streamable HTTP; its stdio guidance emphasizes that stdout is the protocol stream. Ordinary server output must not be allowed to corrupt it. [MCP Python SDK installation](https://py.sdk.modelcontextprotocol.io/get-started/installation/) · [Running an MCP server](https://py.sdk.modelcontextprotocol.io/run/)
+Use the official MCP Python SDK for protocol messages, initialization, capability negotiation, tool listing, and tool calls. The first implementation pins `mcp==2.3.0` and exercises its STDIO client against the bundled demo server. Streamable HTTP remains unimplemented. SDK STDIO guidance emphasizes that stdout is the protocol stream; ordinary server output belongs on stderr. [MCP Python SDK installation](https://py.sdk.modelcontextprotocol.io/get-started/installation/) · [STDIO client API](https://py.sdk.modelcontextprotocol.io/api/mcp/client/stdio/)
 
-The detailed proposed runtime/session design and the first real STDIO demo sequence are documented in [MCP runtime architecture](mcp-runtime-architecture.md) and [first vertical slice](first-vertical-slice.md). Neither is implemented by the current backend foundation.
+The runtime boundaries and implemented demo sequence are documented in [MCP runtime architecture](mcp-runtime-architecture.md) and [first vertical slice](first-vertical-slice.md). Only the first local STDIO flow is implemented; those documents also describe future behavior.
 
 Keep these operations separate and visible in the UI:
 
@@ -64,12 +64,18 @@ Configuration generation does not prove a connection works. A successful handsha
 
 ## Component interactions and proposed API
 
-The browser calls the local FastAPI process over loopback. The service currently binds to `127.0.0.1`, enables CORS for configured local frontend origins, and exposes the two baseline routes below. The API has no authentication and must remain a local development service. Additional routes are proposals only.
+The browser calls the local FastAPI process over loopback. The service binds to `127.0.0.1`, enables CORS for configured local frontend origins, and applies exact Host/Origin checks plus a per-process request token on the versioned Playground API. It remains a local development service, not a remotely exposed backend.
 
 | Endpoint / proposal | Status and purpose | Side effects |
 |---|---|---|
 | `GET /api/health` | Implemented: return `{ "status": "ok" }`. | None |
 | `POST /api/test` | Implemented: validate a message and return a backend-generated echo response. | None |
+| `GET /api/v1/security/token`, `GET /api/v1/demo` | Implemented: validate local browser origin and return a no-store token or the demo definition. | None |
+| `POST /api/v1/integrations` | Implemented: validate and register a canonical integration in memory. | In-memory state |
+| `POST /api/v1/sessions/prepare`, `POST /api/v1/sessions` | Implemented for STDIO: prepare one-use approval, then start the approved process through the SDK and discover tools. | Starts a local child process |
+| `GET /api/v1/sessions/{id}` | Implemented: return current session metadata and tools discovered from the server. | None |
+| `POST /api/v1/sessions/{id}/tools/{name}/approval`, `POST /api/v1/sessions/{id}/tools/{name}/call` | Implemented: prepare and consume one-use approval for exact arguments, then return the actual MCP result. | Executes one tool call |
+| `DELETE /api/v1/sessions/{id}` | Implemented: close the SDK session and child process. | Process cleanup |
 | `POST /api/v1/integrations/validate` | Proposed: validate a definition and return path-specific issues. | None |
 | `POST /api/v1/configs/compile` | Compile a valid definition for one client target/version/scope. | None; never writes the target file |
 | `POST /api/v1/configs/import` | Parse a user-selected config into candidate definitions. | Read only; require explicit file selection |
@@ -80,7 +86,7 @@ The browser calls the local FastAPI process over loopback. The service currently
 | `POST /api/v1/sessions/{id}/tools/{name}/call` | Invoke a chosen tool with user-reviewed arguments. | Executes a tool; per-call approval required |
 | `DELETE /api/v1/sessions/{id}` | Cancel and close a session. | Terminates/cleans up resources |
 
-Future route shapes should be settled in their implementation phases. Do not expose a generic endpoint that accepts arbitrary commands or shell strings.
+Compiler, diagnostics, config import/export, HTTP sessions, and persistence routes remain proposals. Do not expose a generic endpoint that accepts arbitrary commands or shell strings.
 
 ## Data flow
 
@@ -101,7 +107,7 @@ The session manager should maintain explicit states such as `starting`, `initial
 - Invoke the approved executable with an argument array and no shell interpolation. Pass only the required environment, with resolved secrets redacted from logs.
 - For Streamable HTTP, validate scheme/host policy, use TLS for non-loopback endpoints, and keep auth material out of URLs and logs.
 - Enforce startup, handshake, request, and idle timeouts; support cancellation and cleanup after errors or UI disconnects.
-- Initial resource limits (configurable after testing): at most two MCP sessions that launch local stdio processes at once; retain at most 1 MiB of stderr per process; reject an individual MCP protocol message/result larger than 8 MiB. Do not collect stdout as diagnostic text; stdio stdout is the protocol stream handled by the SDK.
+- First-slice limits: at most two active STDIO sessions; 30-second initialization/discovery and tool-call, 10-minute idle and 30-minute maximum-session deadlines; tool schemas and completed results limited to 1 MiB. Child stderr is discarded to the platform null device. The SDK exposes no raw STDIO frame-size cap before parsing, so oversized individual stdout frames remain a known memory risk.
 - Bound cleanup: ask the SDK transport to close and wait up to 3 seconds; terminate the process group/job and wait up to 2 seconds; then force-kill and wait up to 2 seconds. Report a cleanup failure if the process remains. Implement OS-specific process-group/job behavior and verify it on each target OS.
 - Treat a server's tool descriptions and responses as untrusted input. Do not automatically call tools discovered from a server.
 
@@ -109,7 +115,7 @@ The session manager should maintain explicit states such as `starting`, `initial
 
 - **Origin protection:** bind only to loopback; allow only the configured MCPilot UI origin; validate `Host` and `Origin`; use a per-launch unpredictable token or equivalent request protection for state-changing operations. CORS alone is not an authorization mechanism. Reject unexpected origins and test DNS-rebinding-style hostnames.
 - **Approval:** require a clear user action before client config writes, each executable launch, remote connections, and each tool invocation. Show the resolved executable, args, approved workspace and cwd, environment key names, destination/endpoint, and relevant permissions before approval. Approval is invalidated when these details change.
-- **Process execution:** never use `shell=True`, shell command concatenation, or unreviewed executable paths. Enforce workspace containment for cwd, at most two concurrent local stdio processes, an 8 MiB per-message/result cap, a 1 MiB per-process stderr cap, and bounded close/terminate/kill waits as stated above. Return actionable missing-runtime errors.
+- **Process execution:** never use `shell=True`, shell command concatenation, or unreviewed executable paths. The demo confines cwd to the repository root, caps active sessions at two, delegates bounded cleanup to the SDK, and enforces a 1 MiB schema/result cap. The SDK has no pre-parse stdout frame cap, and MCPilot does not yet add an OS process-limit supervisor.
 - **Secrets:** accept secret references in the canonical spec, not committed secret values. Resolve from the current user's environment or a future OS credential store only when needed. Mask secret inputs; exclude secrets from previews, downloads, SQLite, exception messages, and logs unless the user explicitly requests an appropriate local export.
 - **Filesystem:** use platform-aware paths; constrain generated writes to a user-approved destination; avoid following unexpected symlinks where security-sensitive; use atomic writes and backups when replacing a file.
 - **Local data:** if/when SQLite is used, place it in the OS-appropriate per-user application-data directory, not the repository. Keep credentials out of the database. Provide a way to locate and remove local data.

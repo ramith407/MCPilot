@@ -2,7 +2,7 @@
 
 ## Status
 
-The repository's Git root is the `MCPilot` directory. It contains the existing Next.js frontend and a minimal FastAPI backend with health and message-test endpoints. The backend does not implement MCP connections or other future MCP features. These instructions have not been verified on clean machines across Windows, Linux, and macOS, so they are not a cross-platform support claim.
+The repository's Git root is the `MCPilot` directory. It contains the Next.js frontend and FastAPI backend. The backend includes the health/message endpoints and the first local STDIO MCP demo. Automated verification was run on Windows 11 with Python 3.13.9. These instructions have not been verified on clean machines across Windows, Linux, and macOS; this is not a cross-platform compatibility claim.
 
 This guide is located at `docs/development-setup.md`; its repository-relative README link is `docs/development-setup.md`.
 
@@ -17,7 +17,7 @@ For the backend:
 
 - Python **3.11 or newer**; Python 3.13 is the tested backend target. The backend's `src/` package is installed editable by `backend/requirements.txt`, so commands run from the repository root do not need `PYTHONPATH` or Uvicorn `--app-dir`.
 - A backend virtual environment under the repository (`backend/.venv/`). Do not install MCPilot backend dependencies globally.
-- The pinned runtime packages in `backend/requirements.txt`: FastAPI, Pydantic, Uvicorn, python-dotenv, and the editable local package. `backend/requirements-dev.txt` includes those runtime requirements plus pinned pytest and httpx2 test dependencies.
+- The pinned runtime packages in `backend/requirements.txt`: FastAPI, Pydantic, Uvicorn, python-dotenv, the official MCP SDK (`mcp==2.3.0`), and the editable local package. `backend/requirements-dev.txt` includes those runtime requirements plus pinned pytest and httpx2 test dependencies.
 
 No MCP server, AI client, credential, or user-specific configuration file is a prerequisite for installing the frontend.
 
@@ -39,7 +39,7 @@ Start the existing frontend:
 npm run dev
 ```
 
-Then open `http://localhost:3000`. The overview's backend check requires the API to be started separately. The UI and API here only verify basic HTTP connectivity; they do not provide live MCP features.
+Then open `http://localhost:3000`. The Overview backend check exercises the health/message API. The Playground registers and connects only the bundled, local STDIO demo server.
 
 ## Start the backend
 
@@ -61,7 +61,7 @@ The commands above invoke the virtual-environment interpreter directly, so activ
 ```sh
 python3.13 -m venv backend/.venv
 backend/.venv/bin/python -m pip install -r backend/requirements-dev.txt
-cp .env.example .env
+if [ ! -f .env ]; then cp .env.example .env; fi
 backend/.venv/bin/python -m uvicorn mcpilot_api.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
@@ -74,6 +74,8 @@ npm run dev
 ```
 
 The backend listens on `127.0.0.1:8000`. `MCPILOT_CORS_ORIGINS` configures allowed local frontend origins; `NEXT_PUBLIC_MCPILOT_API_URL` configures the frontend API base URL. Restart both development servers after changing `.env`. Do not bind the backend to a public interface.
+
+Open **Playground** at `http://localhost:3000/playground`, register the demo integration, review the resolved executable and argv, then approve the connection. The live session should return `add_numbers`, `echo_message`, and `get_current_time`. Select `add_numbers`, keep `{"a":10,"b":20}`, review and approve the exact call, and verify the returned structured sum is `30`. Disconnect when finished. The demo does not connect to any external server.
 
 Run the backend API tests from the repository root:
 
@@ -105,7 +107,7 @@ curl -X POST http://127.0.0.1:8000/api/test \\
   -d '{"message":"hello"}'
 ```
 
-The test endpoint validates messages as non-empty strings up to 500 characters. It does not connect to an MCP server.
+The `/api/test` endpoint validates messages as non-empty strings up to 500 characters. The versioned local runtime API is protected by Host/Origin checks and a per-process browser request token.
 
 ## Environment variables and personal configuration
 
@@ -125,8 +127,9 @@ The test endpoint validates messages as non-empty strings up to 500 characters. 
 | `python3.13` unavailable on Linux/macOS | Install Python 3.13 using the OS-appropriate package manager or official installer; keep it separate from system Python if the OS relies on that interpreter. |
 | PowerShell blocks venv activation | Follow the note above or invoke `.venv\Scripts\python.exe` directly. |
 | Python package installation fails | Use the interpreter under `backend/.venv/`, run installation from the repository root, and confirm both requirement files and `backend/pyproject.toml` are present. |
+| `ModuleNotFoundError: jsonschema` | Refresh the same backend environment used to start Uvicorn: `backend\.venv\Scripts\python.exe -m pip install -r backend\requirements-dev.txt` on Windows, or `backend/.venv/bin/python -m pip install -r backend/requirements-dev.txt` on Linux/macOS. Start Uvicorn with that environment's Python interpreter. |
 | Port 3000 is occupied | Stop the other dev server or use the documented Next.js port override. |
-| A configured MCP command is missing | MCP runtime detection is not implemented in this backend foundation. |
+| The Playground cannot find Python or start the demo | Install Python 3.11+ and backend requirements into `backend/.venv`; launch Uvicorn with that same interpreter. Check the safe error message in the Playground. |
 | Client config path differs by OS | Resolve it using the selected client's documentation and current user's OS paths; do not copy another developer's absolute path. |
 
 ## Cross-platform verification policy
@@ -138,6 +141,6 @@ Do not advertise Windows, Linux, or macOS support based only on framework suppor
 3. Backend startup bound to loopback and frontend-to-backend communication.
 4. Missing runtime and missing credential errors.
 5. Path resolution and config import/export.
-6. Approved stdio launch, Streamable HTTP connection, cancellation, and process cleanup once those features exist.
+6. Approved STDIO demo launch, cancellation, and process cleanup on every OS before claiming support there. Streamable HTTP remains unimplemented.
 
 Publish only the OS/version combinations and features that passed. A feature not yet implemented cannot pass this gate.

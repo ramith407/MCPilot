@@ -2,9 +2,9 @@
 
 ## Status
 
-**Proposed design only.** The repository does not yet have an MCP SDK dependency, MCP client, connection manager, integration-registration API, or live Playground. The current FastAPI backend provides health and message-test endpoints only. The design below is not evidence that MCP connections or tools work today.
+**Status: first STDIO slice implemented; broader design remains proposed.** `mcp==2.3.0` now powers a real local session to the bundled demo server. The backend registers the v1 canonical model in memory, requires backend-verified one-use approval before launch and each tool call, initializes the SDK client, discovers tools, and cleans up the session. Streamable HTTP, external integrations, config generation, persistent state, and diagnostics are not implemented.
 
-The runtime uses the official MCP Python SDK as the protocol client. The SDK version and the protocol versions it supports must be pinned and tested when implementation begins. The current SDK client API accepts a `StdioServerParameters`, a Streamable HTTP URL/transport, or an in-process server for tests; entering its asynchronous context opens the connection and leaving closes it. The SDK exposes negotiated connection facts, paginated tool listing, and tool calls. [Python SDK client](https://py.sdk.modelcontextprotocol.io/client/) · [Python SDK client transports](https://py.sdk.modelcontextprotocol.io/client/transports/)
+The runtime uses the official MCP Python SDK as the protocol client, pinned here to `mcp==2.3.0`. The current SDK client API accepts `StdioServerParameters`, a Streamable HTTP URL/transport, or an in-process server for tests; entering its asynchronous context opens the connection and leaving closes it. The SDK exposes negotiated connection facts, paginated tool listing, and tool calls. [Python SDK client](https://py.sdk.modelcontextprotocol.io/client/) · [Python SDK client transports](https://py.sdk.modelcontextprotocol.io/client/transports/)
 
 ## Responsibility boundaries
 
@@ -69,21 +69,21 @@ The diagram shows two mutually exclusive transport paths. STDIO launches a child
 
 ### Integration registration
 
-The proposed API validates the submitted versioned canonical model, assigns/accepts its portable `id`, and stores it in a local in-memory registry for the initial demonstration. It returns the validated definition and safe validation notices. It must not launch or connect as a side effect. No database is needed for the first slice; restart clears the registry.
+The implemented API validates the submitted versioned canonical model and stores it in a local in-memory registry. It returns only safe registration metadata. Registration does not launch or connect. A backend restart clears registrations and sessions.
 
-Suggested API boundaries (all proposed, not implemented):
+Implemented first-slice API boundaries (the wider API remains proposed):
 
 | Operation | Purpose | Side effects |
 |---|---|---|
+| `GET /api/v1/security/token` | Issue a per-process browser request token after Host/Origin validation. | None; response is no-store. |
+| `GET /api/v1/demo` | Return the portable bundled demo definition. | None. |
 | `POST /api/v1/integrations` | Validate and register one canonical definition. | In-memory state only. |
-| `GET /api/v1/integrations/{id}` | Read the registered definition with secrets still represented as references. | None. |
-| `POST /api/v1/sessions/prepare` | Resolve and return the exact launch/endpoint summary plus a short-lived approval challenge. | No process launch or HTTP connection; do not resolve secrets. |
-| `POST /api/v1/sessions` | Consume a valid connection approval and open the SDK client. | Opens transport/process. |
-| `GET /api/v1/sessions/{id}` | Read state, negotiated metadata, and safe errors. | None. |
-| `GET /api/v1/sessions/{id}/tools` | Return the actual discovered tool metadata/schema. | SDK listing request if not cached/current. |
-| `POST /api/v1/sessions/{id}/tools/{name}/approval` | Create a short-lived approval challenge bound to the selected arguments. | No tool call. |
-| `POST /api/v1/sessions/{id}/tools/{name}/call` | Execute only with the unused approval challenge for the exact argument digest. | Executes a server tool. |
-| `DELETE /api/v1/sessions/{id}` | Close the managed client and its transport/process. | Cleanup. |
+| `POST /api/v1/sessions/prepare` | Resolve and return exact STDIO executable/argv/cwd plus a short-lived one-use approval. | No process launch; secrets resolve only after approval. |
+| `POST /api/v1/sessions` | Consume approval, open an SDK-managed STDIO client, initialize, and discover tools. | Launches the approved child. |
+| `GET /api/v1/sessions/{id}` | Return live session facts and discovered tools. | None. |
+| `POST /api/v1/sessions/{id}/tools/{name}/approval` | Create approval bound to the discovered tool and exact arguments. | No tool call. |
+| `POST /api/v1/sessions/{id}/tools/{name}/call` | Execute only with the unused matching approval. | Executes a server tool. |
+| `DELETE /api/v1/sessions/{id}` | Close the SDK context and child process. | Cleanup. |
 
 Routes are design suggestions, not an API commitment. Version routes before expanding the current two unversioned foundation endpoints. Do not expose a generic “run command” route.
 
@@ -93,7 +93,7 @@ Use explicit states such as `registered`, `awaiting_approval`, `starting`, `conn
 
 MCPilot's session ID is an opaque, random, local API handle. It is not an MCP `Mcp-Session-Id`; the presence/semantics of a protocol-level ID depends on the negotiated protocol and remote server. A stdio connection remains tied to its child process while open.
 
-The manager keeps the SDK client's async context open for the life of a logical Playground connection. It also owns a per-session lock for the first slice, so an invocation, cancellation, and close cannot race. Since an in-memory manager cannot share clients across workers, run one FastAPI/Uvicorn worker for the initial implementation. App shutdown closes all sessions; process restart invalidates handles and never claims those sessions survived.
+The manager keeps the SDK client's async context inside a per-session worker task and queues calls and close requests through that task. This keeps the SDK lifecycle in one async task and serializes operations. Since an in-memory manager cannot share clients across workers, run one FastAPI/Uvicorn worker. App shutdown closes all sessions; process restart invalidates handles.
 
 ## SDK connection and tool flow
 
@@ -129,20 +129,20 @@ The SDK currently documents `Client(StdioServerParameters(...))`, `Client(url)` 
 
 Use stage-specific finite deadlines: executable resolution/launch, protocol open/negotiation, each tool call, idle session, and maximum session lifetime. A timeout must cancel the in-flight operation, transition state once, and run cleanup. Do not rely on HTTP disconnect alone to kill a process. Cancellation behavior must be tested against the pinned SDK rather than assumed from task cancellation.
 
-Proposed initial resource ceilings (implementation values require tests):
+Implemented resource ceilings for the first local slice (Windows 11/Python 3.13.9 tested; other OSes not verified):
 
 - At most **two active local STDIO processes** across sessions.
-- Retain at most **1 MiB of stderr per process**; stdout remains protocol-only.
-- Reject an individual MCP protocol message/result larger than **8 MiB**. Never call a truncated result successful.
-- Suggested first-slice budgets: **15 seconds** to launch/initialize, **30 seconds** per deterministic demo tool call, **10 minutes** idle session, and **30 minutes** maximum session lifetime. Streamable HTTP's SDK read timeout is distinct because a server stream can remain open for a long time.
-- On close: allow the SDK to close gracefully for up to **3 seconds**, terminate the child/process group and wait up to **2 seconds**, then force-kill and wait up to **2 seconds**. Report cleanup failure and retain a safe process identifier if a process remains.
+- Child stderr is redirected to the platform null device and is not retained or returned. SDK stdout is consumed as protocol data only.
+- Reject discovered tool schemas and completed tool results larger than **1 MiB**. The official SDK's public STDIO API does not expose a pre-parse raw frame-size limit; an oversized single stdout line can therefore be buffered before MCPilot applies its schema/result limit.
+- Enforce **30 seconds** for initialization/discovery, **30 seconds** per tool call, **10 minutes** idle, and **30 minutes** maximum session lifetime. Streamable HTTP is not implemented.
+- On close, delegate subprocess-tree cleanup to the SDK STDIO context, whose documented waits are bounded and cancellation-shielded. MCPilot does not add a separate OS Job Object/process-group fallback yet.
 
 Errors must distinguish invalid definitions, missing/unapproved executable, user denial, process launch/early exit, transport failure, version/capability negotiation failure, tool-list failure, invalid tool arguments, server tool error, result too large, timeout/cancel, and cleanup failure. Return stable codes and remediation, not Python tracebacks or raw process environments. A server-provided tool error (`is_error`) should be rendered as a tool outcome while preserving a healthy connection when possible.
 
 ## Concurrency and lifecycle ownership
 
 - Session manager owns all client contexts, transports, HTTP clients, subprocess references exposed by the SDK, deadlines, approvals, and cleanup tasks.
-- A session is an in-memory object bound to the one backend process/event loop. Use a global semaphore for the STDIO process cap and a per-session lock for the initial serialized-call policy.
+- A session is an in-memory object bound to the one backend process/event loop. Use a global semaphore for the STDIO process cap and a per-session worker queue for serialized SDK operations.
 - Do not run blocking work on FastAPI's event loop. Use SDK async operations and bounded I/O drains. Do not start background processes that outlive the session manager.
 - On application shutdown, stop accepting new connections, cancel in-flight tool calls within deadline, close every SDK context, then terminate remaining children within the cleanup budget.
 - Session cleanup must be idempotent. Repeated DELETE, timeout, app shutdown, and transport failure converge on one close path.
@@ -151,27 +151,28 @@ Errors must distinguish invalid definitions, missing/unapproved executable, user
 ## Security boundaries
 
 1. **No arbitrary shell execution.** Use a structured executable field plus an argument array. Reject shell metacharacter parsing and do not use `shell=True`. Resolve the executable under a controlled PATH, canonicalize the resolved path, and require the user to explicitly approve that exact executable and argv. Re-resolve at launch and fail if it changed.
-2. **Working directory containment.** Require an explicit user-selected workspace root. Resolve cwd and symlinks and prove it remains under that approved root. No implicit process cwd, `..`, or unreviewed absolute path.
+2. **Working directory containment.** The demo uses the repository root as its workspace and displays the resolved cwd before approval. It resolves symlinks and rejects cwd outside that root, `..`, and absolute portable cwd paths. A general user-selected root is future work.
 3. **Least-privilege environment.** Start with a minimal allow-list, overlay only declared environment values, and resolve secret references at connection time. Never log or return resolved configuration secrets in API responses, generated configs, exception messages, telemetry, or stored definitions. Redact exact known secret values from stderr and tool results before returning/logging them. This cannot detect every transformed or encoded leak, so do not give a server a secret it does not need or trust.
 4. **Per-action approval.** Require connection approval before launching/connecting and a separate tool approval for every call. The backend, not a frontend boolean, verifies short-lived one-use approval bound to the exact integration revision/executable or endpoint, tool, and argument digest.
-5. **Bound resources.** Apply the timeouts, two-process concurrency limit, stderr/result caps, session lifetime, and bounded cleanup above. User-facing output identifies truncation/failure instead of silently implying a complete result.
+5. **Bound resources.** Apply the timeouts, two-process concurrency limit, result/schema caps, session lifetime, and SDK-bounded cleanup above. The current SDK interface does not cap a raw STDIO frame before parsing; treat this as an unresolved security limitation, not as a complete process-output cap.
 6. **Protect the local API.** Bind only to `127.0.0.1`. CORS is not authorization. Validate exact allowed `Host` and browser `Origin` values on every request; reject unexpected hostnames/origins (including attacker-controlled DNS-rebinding names). Protect state-changing requests with a per-process unpredictable local token or equivalent CSRF defense, and use strict content types. Do not enable wildcard origins or credentials. Verify both `localhost` and `127.0.0.1` UI origins deliberately.
 7. **Protect outbound HTTP.** Connection is a separate approved action. Restrict URL schemes, inspect DNS resolution and resolved addresses, block cloud metadata/link-local and other disallowed targets, guard against DNS changes/redirects, require TLS for remote endpoints, and apply connection/read deadlines. Static validation never contacts the endpoint.
 8. **Treat server data as untrusted.** Render descriptions/results as text or allow-listed structured JSON; never interpret server content as HTML/Markdown with active links or commands. Validate tool names/arguments against the discovered schema and enforce backend limits.
 9. **Do not overclaim sandboxing.** A child process generally has the developer account's OS permissions. MCPilot's approval and limits reduce accidental execution but are not an OS sandbox; never imply the demo isolates a malicious server.
 
-## Verification gates before implementation is considered complete
+MCP itself does not mandate one interaction pattern, but its tool security guidance recommends keeping a human able to deny invocations and showing which tools are exposed. MCPilot intentionally chooses a stricter per-call confirmation policy for this local management UI. [MCP tool user interaction guidance](https://modelcontextprotocol.io/specification/2025-11-25/server/tools)
 
-- Pin one official Python SDK release and document the supported MCP protocol revisions; test the selected SDK API against the demo server and one older compatible server if compatibility is claimed.
-- Verify STDIO stdout cleanliness, environment allow-listing, argument preservation, working directory, timeout, cancellation, process-tree cleanup, and output caps on Windows 10/11, Linux, and macOS.
+## Remaining verification gates
+
+- `mcp==2.3.0` is selected and pinned. Test another server/protocol version before claiming compatibility with it.
+- Verify STDIO stdout cleanliness, environment allow-listing, argument preservation, working directory, timeout, cancellation, process-tree cleanup, and output behavior on Windows 10/11, Linux, and macOS.
 - Verify Streamable HTTP auth, TLS errors, same-origin redirect behavior, SSE cancellation, endpoint allow/deny rules, and size limits separately. The first vertical slice does not exercise HTTP.
 - Test approval denial, approval invalidation after spec/args change, CSRF/Host/Origin rejection, DNS-rebinding-style hostnames, secret redaction, and all cleanup/error states.
 - Do not claim cross-platform compatibility for an OS that has not passed its clean-machine gates.
 
-## Decisions to close before implementation
+## Remaining decisions and limitations
 
-- Pin an exact official Python SDK release and define the protocol-version compatibility set tested by the MVP. SDK documentation is evolving; avoid relying on unpinned “latest” behavior.
-- Confirm public SDK support for child cwd, process-tree/job containment, and bounded shutdown on Windows, Linux, and macOS. If unavailable, decide on a supported wrapper/supervisor without bypassing the SDK's MCP protocol client.
-- Decide how a browser on the Next.js origin securely obtains/presents a per-process local API request token, while keeping `Host`/`Origin` validation independent of CORS.
-- Define how a user selects the approved workspace root and how local executable overrides are stored without entering an exported portable spec.
+- Verify the SDK's documented bounded process-tree cleanup behavior on Windows, Linux, and macOS. The public STDIO API does not cap raw protocol frames before parsing.
+- The browser token and exact local Host/Origin checks are implemented for the configured `localhost:3000` and `127.0.0.1:3000` frontend origins.
+- A general user-selected workspace root and local executable overrides are not implemented; the demo uses the repository root and resolves its `python` alias to the active backend interpreter.
 - Keep OAuth and durable integration persistence deferred unless the first demo establishes a concrete need.
