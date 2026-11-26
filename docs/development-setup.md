@@ -15,9 +15,9 @@ For the current frontend:
 
 For the backend:
 
-- Python **3.11 or newer**, matching the current official MCP Python SDK requirement. [MCP Python SDK installation](https://py.sdk.modelcontextprotocol.io/get-started/installation/)
+- Python **3.11 or newer**; Python 3.13 is the tested backend target. The backend's `src/` package is installed editable by `backend/requirements.txt`, so commands run from the repository root do not need `PYTHONPATH` or Uvicorn `--app-dir`.
 - A backend virtual environment under the repository (`backend/.venv/`). Do not install MCPilot backend dependencies globally.
-- The pinned packages in `backend/requirements.txt`: FastAPI, Pydantic, Uvicorn, and python-dotenv. No MCP SDK or MCP server package is required for these two basic endpoints.
+- The pinned runtime packages in `backend/requirements.txt`: FastAPI, Pydantic, Uvicorn, python-dotenv, and the editable local package. `backend/requirements-dev.txt` includes those runtime requirements plus pinned pytest and httpx2 test dependencies.
 
 No MCP server, AI client, credential, or user-specific configuration file is a prerequisite for installing the frontend.
 
@@ -48,10 +48,10 @@ Run these commands from the repository root. Copy `.env.example` to `.env` once;
 ### Windows 10/11 — PowerShell
 
 ```powershell
-py -3.11 -m venv backend/.venv
-backend/.venv/Scripts/python.exe -m pip install -r backend/requirements.txt
-Copy-Item .env.example .env
-backend/.venv/Scripts/python.exe -m uvicorn mcpilot_api.main:app --app-dir backend/src --host 127.0.0.1 --port 8000 --reload
+py -3.13 -m venv backend\.venv
+backend\.venv\Scripts\python.exe -m pip install -r backend\requirements-dev.txt
+if (!(Test-Path .env)) { Copy-Item .env.example .env }
+backend\.venv\Scripts\python.exe -m uvicorn mcpilot_api.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
 The commands above invoke the virtual-environment interpreter directly, so activation policy does not need to change.
@@ -59,10 +59,10 @@ The commands above invoke the virtual-environment interpreter directly, so activ
 ### Linux and macOS — bash/zsh
 
 ```sh
-python3.11 -m venv backend/.venv
-backend/.venv/bin/python -m pip install -r backend/requirements.txt
+python3.13 -m venv backend/.venv
+backend/.venv/bin/python -m pip install -r backend/requirements-dev.txt
 cp .env.example .env
-backend/.venv/bin/python -m uvicorn mcpilot_api.main:app --app-dir backend/src --host 127.0.0.1 --port 8000 --reload
+backend/.venv/bin/python -m uvicorn mcpilot_api.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
 If you prefer activation, Python uses `Scripts/Activate.ps1` on Windows PowerShell and `bin/activate` on bash/zsh. [Python `venv` documentation](https://docs.python.org/3/library/venv.html)
@@ -74,6 +74,14 @@ npm run dev
 ```
 
 The backend listens on `127.0.0.1:8000`. `MCPILOT_CORS_ORIGINS` configures allowed local frontend origins; `NEXT_PUBLIC_MCPILOT_API_URL` configures the frontend API base URL. Restart both development servers after changing `.env`. Do not bind the backend to a public interface.
+
+Run the backend API tests from the repository root:
+
+```sh
+backend/.venv/bin/python -m pytest backend/tests
+```
+
+On Windows PowerShell, use `backend\.venv\Scripts\python.exe -m pytest backend\tests` instead.
 
 ## Check the connection
 
@@ -113,10 +121,10 @@ The test endpoint validates messages as non-empty strings up to 500 characters. 
 |---|---|
 | `node` or `npm` not found | Install a supported Node.js release and reopen the terminal; verify with `node --version` and `npm --version`. |
 | `npm ci` reports lock mismatch | Confirm you're at the repository root and use the committed `package.json` and `package-lock.json`; do not resolve by silently regenerating the lockfile. |
-| `py` unavailable on Windows | Install Python 3.11+ and enable the Python launcher, or invoke the installed Python interpreter explicitly. |
-| `python3.11` unavailable on Linux/macOS | Install Python 3.11+ using the OS-appropriate package manager or official installer; keep it separate from system Python if the OS relies on that interpreter. |
+| `py -3.13` unavailable on Windows | Install Python 3.13 and the Python launcher, or use the path to the Python 3.13 interpreter explicitly. |
+| `python3.13` unavailable on Linux/macOS | Install Python 3.13 using the OS-appropriate package manager or official installer; keep it separate from system Python if the OS relies on that interpreter. |
 | PowerShell blocks venv activation | Follow the note above or invoke `.venv\Scripts\python.exe` directly. |
-| Python package installation fails | Use the interpreter under `backend/.venv/` and confirm `backend/requirements.txt` is present. |
+| Python package installation fails | Use the interpreter under `backend/.venv/`, run installation from the repository root, and confirm both requirement files and `backend/pyproject.toml` are present. |
 | Port 3000 is occupied | Stop the other dev server or use the documented Next.js port override. |
 | A configured MCP command is missing | MCP runtime detection is not implemented in this backend foundation. |
 | Client config path differs by OS | Resolve it using the selected client's documentation and current user's OS paths; do not copy another developer's absolute path. |
